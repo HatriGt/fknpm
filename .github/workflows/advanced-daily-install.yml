@@ -1,0 +1,222 @@
+name: Advanced Daily Package Installation
+
+on:
+  schedule:
+    # Run daily at 10:00 AM UTC
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Installation mode'
+        required: true
+        default: 'random-daily'
+        type: choice
+        options:
+          - random-daily
+          - manual
+      package_name:
+        description: 'Package name (for manual mode)'
+        required: false
+        default: 'hana-mcp-ui'
+      install_count:
+        description: 'Number of installations (1-50, for manual mode)'
+        required: false
+        default: '10'
+        type: number
+      concurrency:
+        description: 'Concurrency level (1-10, empty for auto)'
+        required: false
+        default: ''
+        type: number
+      timezone:
+        description: 'Timezone for scheduling'
+        required: false
+        default: 'UTC'
+        type: choice
+        options:
+          - UTC
+          - America/New_York
+          - America/Los_Angeles
+          - Europe/London
+          - Asia/Tokyo
+
+env:
+  NODE_VERSION: '18'
+  MODE: ${{ github.event.inputs.mode || 'random-daily' }}
+  PACKAGE_NAME: ${{ github.event.inputs.package_name || 'hana-mcp-ui' }}
+  INSTALL_COUNT: ${{ github.event.inputs.install_count || '10' }}
+  CONCURRENCY: ${{ github.event.inputs.concurrency || '' }}
+  TIMEZONE: ${{ github.event.inputs.timezone || 'UTC' }}
+
+jobs:
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-latest
+    outputs:
+      package_name: ${{ steps.validate.outputs.package_name }}
+      install_count: ${{ steps.validate.outputs.install_count }}
+      concurrency: ${{ steps.validate.outputs.concurrency }}
+    steps:
+      - name: Validate inputs
+        id: validate
+        run: |
+          # Validate mode
+          if [[ "${{ env.MODE }}" != "random-daily" && "${{ env.MODE }}" != "manual" ]]; then
+            echo "❌ Mode must be 'random-daily' or 'manual'"
+            exit 1
+          fi
+          
+          # Validate manual mode inputs
+          if [[ "${{ env.MODE }}" = "manual" ]]; then
+            # Validate package name
+            if [[ -z "${{ env.PACKAGE_NAME }}" ]]; then
+              echo "❌ Package name cannot be empty in manual mode"
+              exit 1
+            fi
+            
+            # Validate install count
+            if [[ "${{ env.INSTALL_COUNT }}" -lt 1 || "${{ env.INSTALL_COUNT }}" -gt 50 ]]; then
+              echo "❌ Install count must be between 1 and 50"
+              exit 1
+            fi
+            
+            # Validate concurrency
+            if [[ -n "${{ env.CONCURRENCY }}" ]]; then
+              if [[ "${{ env.CONCURRENCY }}" -lt 1 || "${{ env.CONCURRENCY }}" -gt 10 ]]; then
+                echo "❌ Concurrency must be between 1 and 10"
+                exit 1
+              fi
+            fi
+          fi
+          
+          echo "✅ Input validation passed"
+          echo "mode=${{ env.MODE }}" >> $GITHUB_OUTPUT
+          echo "package_name=${{ env.PACKAGE_NAME }}" >> $GITHUB_OUTPUT
+          echo "install_count=${{ env.INSTALL_COUNT }}" >> $GITHUB_OUTPUT
+          echo "concurrency=${{ env.CONCURRENCY }}" >> $GITHUB_OUTPUT
+
+  install-packages:
+    name: Install Packages
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build project
+        run: bun run build
+
+      - name: Create tmp directory
+        run: mkdir -p tmp
+
+      - name: Pre-installation checks
+        run: |
+          echo "🔍 Pre-installation checks..."
+          echo "🎯 Mode: ${{ needs.validate-inputs.outputs.mode }}"
+          if [[ "${{ needs.validate-inputs.outputs.mode }}" = "random-daily" ]]; then
+            echo "🎲 Random daily mode: hana-mcp packages (50-60 random count)"
+            echo "⏱️  Random gaps between installations (3-12 seconds)"
+          else
+            echo "📦 Package: ${{ needs.validate-inputs.outputs.package_name }}"
+            echo "🔢 Installations: ${{ needs.validate-inputs.outputs.install_count }}"
+            echo "⚡ Concurrency: ${{ needs.validate-inputs.outputs.concurrency || 'auto-calculated' }}"
+          fi
+          echo "🌍 Timezone: ${{ env.TIMEZONE }}"
+          echo "🕙 Current time: $(TZ=${{ env.TIMEZONE }} date)"
+          echo "💻 Runner: ${{ runner.os }}"
+          echo ""
+
+      - name: Run package installations
+        id: install
+        run: |
+          echo "🚀 Starting package installation..."
+          echo ""
+          
+          START_TIME=$(date +%s)
+          
+          if [[ "${{ needs.validate-inputs.outputs.mode }}" = "random-daily" ]]; then
+            echo "🎲 Running random daily mode..."
+            node lib/index.js --random-daily
+          else
+            echo "📦 Running manual mode..."
+            if [ -n "${{ needs.validate-inputs.outputs.concurrency }}" ]; then
+              node lib/index.js "${{ needs.validate-inputs.outputs.package_name }}" "${{ needs.validate-inputs.outputs.install_count }}" "${{ needs.validate-inputs.outputs.concurrency }}"
+            else
+              node lib/index.js "${{ needs.validate-inputs.outputs.package_name }}" "${{ needs.validate-inputs.outputs.install_count }}"
+            fi
+          fi
+          
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "✅ Installation completed in ${DURATION} seconds"
+
+      - name: Post-installation summary
+        if: always()
+        run: |
+          echo ""
+          echo "📊 Installation Summary:"
+          echo "=========================="
+          echo "🎯 Mode: ${{ needs.validate-inputs.outputs.mode }}"
+          if [[ "${{ needs.validate-inputs.outputs.mode }}" = "random-daily" ]]; then
+            echo "🎲 Random daily mode: hana-mcp packages (50-60 random count)"
+            echo "⏱️  Random gaps between installations (3-12 seconds)"
+          else
+            echo "📦 Package: ${{ needs.validate-inputs.outputs.package_name }}"
+            echo "🔢 Installations: ${{ needs.validate-inputs.outputs.install_count }}"
+            echo "⚡ Concurrency: ${{ needs.validate-inputs.outputs.concurrency || 'auto-calculated' }}"
+          fi
+          echo "⏱️  Duration: ${{ steps.install.outputs.duration || 'N/A' }} seconds"
+          echo "🕙 Completed at: $(TZ=${{ env.TIMEZONE }} date)"
+          echo "💻 Runner: ${{ runner.os }}"
+          echo "🎯 Status: ${{ job.status }}"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up temporary files..."
+          rm -rf tmp/*
+          echo "✅ Cleanup completed"
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-logs-${{ github.run_number }}
+          path: |
+            tmp/
+          retention-days: 7
+
+      - name: Create success report
+        if: success()
+        run: |
+          echo "🎉 Daily installation completed successfully!" > success-report.txt
+          echo "📦 Package: ${{ needs.validate-inputs.outputs.package_name }}" >> success-report.txt
+          echo "🔢 Installations: ${{ needs.validate-inputs.outputs.install_count }}" >> success-report.txt
+          echo "⏱️  Duration: ${{ steps.install.outputs.duration }} seconds" >> success-report.txt
+          echo "🕙 Completed at: $(TZ=${{ env.TIMEZONE }} date)" >> success-report.txt
+
+      - name: Upload success report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: success-report-${{ github.run_number }}
+          path: success-report.txt
+          retention-days: 30

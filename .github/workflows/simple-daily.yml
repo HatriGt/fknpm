@@ -1,0 +1,45 @@
+name: Simple Daily Installation
+
+on:
+  schedule:
+    # Daily at 10:00 AM UTC - modify this in config.yml
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Allow manual runs
+
+jobs:
+  install:
+    name: Daily Package Install
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install & Build
+        run: |
+          bun install
+          bun run build
+          mkdir -p tmp
+
+      - name: Run Daily Installation
+        run: |
+          echo "🚀 Starting daily installation at $(date)"
+          echo "🎲 Random daily mode: Installing hana-mcp packages (50-60 random count)"
+          echo "⏱️  Random gaps between installations (3-12 seconds)"
+          echo ""
+          
+          # Install random hana-mcp package with random count (50-60) and random gaps
+          node lib/index.js --random-daily
+          
+          echo ""
+          echo "✅ Daily installation completed at $(date)"
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf tmp/*

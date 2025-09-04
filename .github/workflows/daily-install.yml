@@ -1,0 +1,110 @@
+name: Daily Package Installation
+
+on:
+  schedule:
+    # Run daily at 10:00 AM UTC (adjust timezone as needed)
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      mode:
+        description: 'Installation mode'
+        required: true
+        default: 'random-daily'
+        type: choice
+        options:
+          - random-daily
+          - manual
+      package_name:
+        description: 'Package name (for manual mode)'
+        required: false
+        default: 'hana-mcp-ui'
+      install_count:
+        description: 'Number of installations (for manual mode)'
+        required: false
+        default: '10'
+      concurrency:
+        description: 'Concurrency level (leave empty for auto-calculated)'
+        required: false
+        default: ''
+
+env:
+  NODE_VERSION: '18'
+  MODE: ${{ github.event.inputs.mode || 'random-daily' }}
+  PACKAGE_NAME: ${{ github.event.inputs.package_name || 'hana-mcp-ui' }}
+  INSTALL_COUNT: ${{ github.event.inputs.install_count || '10' }}
+  CONCURRENCY: ${{ github.event.inputs.concurrency || '' }}
+
+jobs:
+  install-packages:
+    name: Install Packages
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build project
+        run: bun run build
+
+      - name: Create tmp directory
+        run: mkdir -p tmp
+
+      - name: Run package installations
+        run: |
+          echo "🚀 Starting daily package installation..."
+          echo "🎯 Mode: ${{ env.MODE }}"
+          echo "🕙 Time: $(date)"
+          echo ""
+          
+          if [ "${{ env.MODE }}" = "random-daily" ]; then
+            echo "🎲 Random daily mode: Installing hana-mcp packages (50-60 random count)"
+            echo "⏱️  Random gaps between installations (3-12 seconds)"
+            node lib/index.js --random-daily
+          else
+            echo "📦 Package: ${{ env.PACKAGE_NAME }}"
+            echo "🔢 Installations: ${{ env.INSTALL_COUNT }}"
+            echo "⚡ Concurrency: ${{ env.CONCURRENCY || 'auto-calculated' }}"
+            if [ -n "${{ env.CONCURRENCY }}" ]; then
+              node lib/index.js "${{ env.PACKAGE_NAME }}" "${{ env.INSTALL_COUNT }}" "${{ env.CONCURRENCY }}"
+            else
+              node lib/index.js "${{ env.PACKAGE_NAME }}" "${{ env.INSTALL_COUNT }}"
+            fi
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up temporary files..."
+          rm -rf tmp/*
+          echo "✅ Cleanup completed"
+
+      - name: Upload logs (if installation fails)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installation-logs-${{ github.run_number }}
+          path: |
+            tmp/
+          retention-days: 7
+
+      - name: Report success
+        if: success()
+        run: |
+          echo "🎉 Daily installation completed successfully!"
+          echo "📊 Package: ${{ env.PACKAGE_NAME }}"
+          echo "🔢 Installations: ${{ env.INSTALL_COUNT }}"
+          echo "⏰ Completed at: $(date)"

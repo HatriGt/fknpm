@@ -1,0 +1,44 @@
+# GitHub Actions Configuration for Daily Package Installation
+# Modify these values to customize your daily runs
+
+# Default mode for daily runs
+default_mode: "random-daily"
+
+# Default package to install daily (for manual mode)
+default_package: "hana-mcp-ui"
+
+# Default number of installations per day (for manual mode)
+default_install_count: 10
+
+# Default concurrency (leave empty for auto-calculated)
+default_concurrency: ""
+
+# Timezone for scheduling (UTC, America/New_York, Europe/London, etc.)
+timezone: "UTC"
+
+# Maximum install count per day (safety limit)
+max_install_count: 50
+
+# Maximum concurrency (safety limit)
+max_concurrency: 10
+
+# Workflow timeout in minutes
+timeout_minutes: 30
+
+# Node.js version
+node_version: "18"
+
+# Packages to rotate through in random daily mode
+# These packages will be randomly selected each day
+package_rotation:
+  - "hana-mcp-ui"
+  - "hana-mcp-server"
+
+# Schedule configuration
+# Default: Daily at 10:00 AM UTC
+# Format: 'minute hour day month day-of-week'
+# Examples:
+#   '0 10 * * *'     - Daily at 10:00 AM
+#   '0 9 * * 1-5'    - Weekdays at 9:00 AM
+#   '0 14 * * 0'     - Sundays at 2:00 PM
+schedule: "0 10 * * *"

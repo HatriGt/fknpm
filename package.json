@@ -1,7 +1,7 @@
 {
   "name": "packagescriptinstaller",
   "version": "1.0.0",
-  "description": "Install npm packages with script, to increase the number of downloads rapidly in npm",
+  "description": "Install npm packages in parallel with configurable concurrency to increase download counts rapidly",
   "main": "lib/index.js",
   "private": false,
   "files": [
@@ -15,7 +15,11 @@
     "npm",
     "package",
     "javascript",
-    "nodejs"
+    "nodejs",
+    "parallel",
+    "concurrency",
+    "downloads",
+    "automation"
   ],
   "author": "JoshK2",
   "license": "MIT",
@@ -35,7 +39,8 @@
     "typescript": "^5.7.2"
   },
   "devDependencies": {
-    "@types/node": "^11.9.3",
+    "@types/node": "^22.0.0",
     "prettier": "^1.16.4"
   }
 }
+

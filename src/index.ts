@@ -29,7 +29,7 @@ function calculateSafeConcurrency(totalInstalls: number): number {
 
 // Get random package from the list
 function getRandomPackage(): string {
-  const packages = ['hana-mcp-ui', 'hana-mcp-server'];
+  const packages = ['hana-mcp-ui', 'hana-mcp-server', 'sap-cap-debugger'];
   return packages[Math.floor(Math.random() * packages.length)];
 }
 
